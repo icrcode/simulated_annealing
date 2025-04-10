@@ -1,85 +1,115 @@
-# problema 1: achar o ponto mais alto de uma cadeia de montanhas fictícia
-# a missão aqui é usar o algoritmo de simulated annealing pra simular um drone explorador
-# voando por um terreno cheio de picos e vales, tentando encontrar a melhor vista possível 🏔️🛸
-
 import math
 import random
 import matplotlib.pyplot as plt
 import numpy as np
 
-# essa é a função do terreno
-# ela tem vários picos e vales, perfeita pra gente testar o algoritmo
+# função que representa o terreno montanhoso
 def f(x):
     return math.sin(5 * x) * (1 - math.tanh(x ** 2))
 
-# função de vizinhança
-# dado um ponto x, ela gera um novo ponto x' pertinho do original (dentro de um range de -0.1 a 0.1)
+# função de vizinhança (gera um novo ponto pertinho do atual)
 def get_neighbor(x):
     delta = random.uniform(-0.1, 0.1)
     x_new = x + delta
+    return min(2, max(-2, x_new))  # mantém dentro do domínio [-2, 2]
 
-    # aqui a gente garante que o novo ponto continua dentro do mapa [-2, 2]
-    return min(2, max(-2, x_new))
-
-# o coração da parada: algoritmo de simulated annealing 💓🔥❄️
+# algoritmo simulated annealing com debug detalhado
 def simulated_annealing(f, x_start, T0=1.0, alpha=0.95, max_iter=100):
-    x = x_start  # ponto inicial escolhido pelo usuário (clique no gráfico)
-    T = T0  # temperatura inicial, ou seja, o quanto o drone ainda tá “animado” pra arriscar
-    history = [x]  # pra guardar todo o caminho que o drone percorreu
+    x = x_start
+    T = T0
+    history = [(x, f(x))]
+    best_x = x
+    best_fx = f(x)
+    step = 1
 
-    while T > 1e-3:  # enquanto ainda tiver “calor” pra explorar
+    print(f"\n🚀 começando busca a partir de x = {x:.4f} com f(x) = {f(x):.4f}\n")
+
+    while T > 1e-3:
+        print(f"\n🔥 temperatura atual: T = {T:.5f}")
         for _ in range(max_iter):
-            x_new = get_neighbor(x)  # gera um ponto vizinho
-            delta = f(x_new) - f(x)  # compara a altura entre o novo e o atual
+            x_new = get_neighbor(x)
+            fx = f(x)
+            fx_new = f(x_new)
+            delta = fx_new - fx
 
-            # se for melhor, aceita na hora. se for pior, pode aceitar com uma chance (pra evitar cair num pico qualquer)
-            if delta > 0 or random.random() < math.exp(delta / T):
+            accept = False
+            if delta > 0:
+                accept = True
+                reason = "melhor ponto 🎯"
+            else:
+                prob = math.exp(delta / T)
+                rand_val = random.random()
+                accept = rand_val < prob
+                reason = f"pior ponto, mas aceito com probabilidade {prob:.4f} (sorteio = {rand_val:.4f})" if accept else "recusado 😅"
+
+            if accept:
                 x = x_new
-                history.append(x)
+                history.append((x, fx_new))
+                if fx_new > best_fx:
+                    best_fx = fx_new
+                    best_x = x_new
 
-        # agora a temperatura esfria um pouco — o drone vai ficando mais seletivo
+            print(f"passo {step:03d}: x = {x_new:.4f}, f(x) = {fx_new:.4f}, delta = {delta:.4f} → {reason}")
+            step += 1
+
         T *= alpha
 
-    return x, history  # retorna o melhor x encontrado e o caminho inteiro
+    print(f"\n✅ ponto mais alto encontrado: x = {best_x:.4f}, f(x) = {best_fx:.4f}")
+    return best_x, best_fx, history
 
-# função que responde ao clique no gráfico
-# aqui o usuário escolhe onde o drone começa a busca
+# função chamada ao clicar no gráfico
 def onclick(event):
     if event.xdata is None or event.ydata is None:
-        print("clique dentro do gráfico, por favor 🫣")
+        print("⚠️ clique dentro do gráfico, por favor")
         return
 
     x_start = event.xdata
     if x_start < -2 or x_start > 2:
-        print("opa! escolhe um ponto dentro do intervalo [-2, 2] 😅")
+        print("⚠️ escolha um ponto dentro de [-2, 2]")
         return
 
-    print(f"voando a partir de x = {x_start:.4f} 🚁")
-    best_x, history = simulated_annealing(f, x_start)
-
-    path_y = [f(x) for x in history]
-
-    # limpa o gráfico anterior e desenha tudo de novo
+    # mostra mensagem de carregamento
     plt.cla()
-    plt.plot(x_vals, y_vals, label='f(x)', linewidth=2)
-    plt.scatter(history, path_y, c='red', s=10, label='caminho do drone')
-    plt.title('simulated annealing - busca do ponto mais alto')
-    plt.xlabel('x')
-    plt.ylabel('f(x)')
-    plt.legend()
-    plt.grid(True)
+    ax.plot(x_vals, y_vals, label='f(x)', linewidth=2)
+    ax.set_title('🔍 buscando o ponto mais alto...')
+    ax.set_xlabel('x')
+    ax.set_ylabel('f(x)')
+    ax.grid(True)
+    ax.set_xlim([-2.2, 2.2])
+    ax.set_ylim([min(y_vals) - 0.2, max(y_vals) + 0.2])
+    plt.pause(0.01)
+
+    # executa o algoritmo
+    best_x, best_fx, history = simulated_annealing(f, x_start)
+
+    # separa pontos
+    xs, ys = zip(*history)
+
+    # redesenha gráfico com caminho
+    plt.cla()
+    ax.plot(x_vals, y_vals, label='f(x)', linewidth=2)
+    ax.plot(xs, ys, 'ro-', markersize=4, label='caminho do drone')
+    ax.scatter(xs[-1], ys[-1], color='gold', edgecolor='black', s=100, label='ponto final ⭐')
+    ax.scatter(best_x, best_fx, color='blue', s=120, marker='X', label='ponto mais alto ⛰️')
+    ax.text(best_x, best_fx + 0.05, f"x = {best_x:.3f}\nf(x) = {best_fx:.3f}", color='blue', fontsize=9, ha='center')
+
+    ax.set_title('simulated annealing - ponto mais alto encontrado')
+    ax.set_xlabel('x')
+    ax.set_ylabel('f(x)')
+    ax.grid(True)
+    ax.set_xlim([-2.2, 2.2])
+    ax.set_ylim([min(y_vals) - 0.2, max(y_vals) + 0.2])
+    ax.legend()
     plt.draw()
 
-    print(f"🔥 melhor ponto encontrado: x = {best_x:.4f}, f(x) = {f(best_x):.4f}")
-
-# cria os dados do gráfico: pontos de -2 até 2, bem densinho
+# define o domínio da função
 x_vals = np.linspace(-2, 2, 1000)
 y_vals = [f(x) for x in x_vals]
 
-# desenha o gráfico inicial
+# mostra gráfico inicial
 fig, ax = plt.subplots(figsize=(10, 6))
 ax.plot(x_vals, y_vals, label='f(x)', linewidth=2)
-ax.set_title('🖱️ clique em um ponto para começar a busca')
+ax.set_title('🖱️ clique onde o drone começa a busca')
 ax.set_xlabel('x')
 ax.set_ylabel('f(x)')
 ax.grid(True)
@@ -87,6 +117,6 @@ ax.set_xlim([-2.2, 2.2])
 ax.set_ylim([min(y_vals) - 0.2, max(y_vals) + 0.2])
 ax.legend()
 
-# conecta o clique do mouse à função onclick
+# conecta clique do mouse ao algoritmo
 cid = fig.canvas.mpl_connect('button_press_event', onclick)
 plt.show()
